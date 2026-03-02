@@ -1,1 +1,3 @@
 node_modules/
+# Webflow synced files (auto-generated)
+.webflow/

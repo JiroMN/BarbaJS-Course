@@ -4,7 +4,7 @@ module.exports = {
   mode: "production", // Minified
   entry: {
     // What file to take and where to put it
-    ["global"]: "./src/globals.js",
+    ["index"]: "./src/index.js",
     ["home-page"]: "./src/home-page.js",
   },
   output: {
