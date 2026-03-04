@@ -1,6 +1,3 @@
-import { initBasicCustomCursor } from "./components/customCursor";
-import { initOverlappingSlider } from "./components/slider";
-
 // -----------------------------------------
 // OSMO PAGE TRANSITION BOILERPLATE
 // -----------------------------------------
@@ -12,6 +9,9 @@ history.scrollRestoration = "manual";
 let lenis = null;
 let nextPage = document;
 let onceFunctionsInitialized = false;
+
+let flipState = null;
+let flippedThumbnail = null;
 
 const hasLenis = typeof window.Lenis !== "undefined";
 const hasScrollTrigger = typeof window.ScrollTrigger !== "undefined";
@@ -40,7 +40,6 @@ function initOnceFunctions() {
 
   // Runs once on first load
   // if (has('[data-something]')) initSomething();
-  initBasicCustomCursor();
 }
 
 function initBeforeEnterFunctions(next) {
@@ -54,7 +53,7 @@ function initAfterEnterFunctions(next) {
   nextPage = next || document;
 
   // Runs after enter animation completes
-  if (has("[data-overlap-slider-init]")) initOverlappingSlider(nextPage);
+  // if (has('[data-something]')) initSomething();
 
   if (hasLenis) {
     lenis.resize();
@@ -70,55 +69,7 @@ function initAfterEnterFunctions(next) {
 // -----------------------------------------
 
 function runPageOnceAnimation(next) {
-  const loadingContainer = document.querySelector("[data-loading-container]");
-  if (!loadingContainer) return; // Stop animation when no [data-loading-words] is found
-
-  const loadingWords = loadingContainer.querySelector("[data-loading-words]");
-  const wordsTarget = loadingWords.querySelector("[data-loading-words-target]");
-  const words = loadingWords
-    .getAttribute("data-loading-words")
-    .split(",")
-    .map((w) => w.trim());
-
   const tl = gsap.timeline();
-
-  tl.set(loadingWords, {
-    yPercent: 50,
-  });
-
-  tl.to(loadingWords, {
-    opacity: 1,
-    yPercent: 0,
-    duration: 1,
-    ease: "Expo.easeInOut",
-  });
-
-  words.forEach((word) => {
-    tl.call(
-      () => {
-        wordsTarget.textContent = word;
-      },
-      null,
-      "+=0.15",
-    );
-  });
-
-  tl.to(loadingWords, {
-    opacity: 0,
-    yPercent: -75,
-    duration: 0.8,
-    ease: "Expo.easeIn",
-  });
-
-  tl.to(
-    loadingContainer,
-    {
-      autoAlpha: 0,
-      duration: 0.6,
-      ease: "Power1.easeInOut",
-    },
-    "+ -0.2",
-  );
 
   tl.call(
     () => {
@@ -143,15 +94,13 @@ function runPageLeaveAnimation(current, next) {
     return tl.set(current, { autoAlpha: 0 });
   }
 
-  tl.to(current, { xPercent: -25, duration: 0.8 });
+  tl.to(current, { autoAlpha: 0, duration: 0.4 });
 
   return tl;
 }
 
 function runPageEnterAnimation(next) {
   const tl = gsap.timeline();
-
-  const heading = nextPage.querySelectorAll("[data-heading-reveal]");
 
   if (reducedMotion) {
     // Immediate swap behavior if user prefers reduced motion
@@ -161,35 +110,102 @@ function runPageEnterAnimation(next) {
     return new Promise((resolve) => tl.call(resolve, null, "pageReady"));
   }
 
-  tl.add("startEnter");
+  tl.add("startEnter", 0.6);
 
   tl.fromTo(
     next,
     {
-      xPercent: 100,
+      autoAlpha: 0,
     },
     {
-      xPercent: 0,
-      duration: 0.8,
+      autoAlpha: 1,
     },
     "startEnter",
   );
 
   tl.add("pageReady");
+  tl.call(resetPage, [next], "pageReady");
 
-  if (heading) {
-    tl.from(
-      heading,
-      {
-        yPercent: 100,
-        autoAlpha: 0,
-        stagger: 0.05,
-      },
-      ">+=0.1",
-    );
+  return new Promise((resolve) => {
+    tl.call(resolve, null, "pageReady");
+  });
+}
+
+function runWorkLeaveAnimation(current, next, trigger) {
+  const clicked = trigger.closest("[data-case-link]");
+  const thumbnail = clicked.querySelector("[data-case-thumbnail]");
+  const nextHero = next.querySelector("section");
+  console.log(current, nextHero);
+
+  flipState = Flip.getState(thumbnail);
+  flippedThumbnail = thumbnail;
+
+  const tl = gsap.timeline({
+    onComplete: () => {
+      current.remove();
+    },
+  });
+
+  if (reducedMotion) {
+    // Immediate swap behavior if user prefers reduced motion
+    return tl.set(current, { autoAlpha: 0 });
   }
 
+  tl.to(current, { autoAlpha: 0, duration: 0.6 }, 0);
+  tl.set(nextHero, { backgroundColor: "transparent" }, 0);
+
+  return tl;
+}
+
+function runCaseEnterAnimation(next) {
+  const nextHero = next.querySelector("section");
+  const revealTargets = nextHero.querySelectorAll("[data-case-reveal]");
+
+  const tl = gsap.timeline();
+
+  if (reducedMotion) {
+    // Immediate swap behavior if user prefers reduced motion
+    tl.set(next, { autoAlpha: 1 });
+    tl.add("pageReady");
+    tl.call(resetPage, [next], "pageReady");
+    return new Promise((resolve) => tl.call(resolve, null, "pageReady"));
+  }
+
+  const placeholder = next.querySelector("[data-case-thumbnail]");
+
+  placeholder.parentNode.insertBefore(flippedThumbnail, placeholder);
+  placeholder.remove();
+
+  tl.add("startEnter", 0.6);
+
+  tl.add(
+    Flip.from(flipState, {
+      duration: 0.8,
+    }),
+    0,
+  );
+
+  tl.fromTo(
+    nextHero,
+    { backgroundColor: "transparent" },
+    { duration: 0.5, backgroundColor: "#fffdfa" },
+    "startEnter",
+  );
+
+  tl.fromTo(
+    revealTargets,
+    { autoAlpha: 0, yPercent: 25 },
+    { autoAlpha: 1, yPercent: 0, stagger: 0.1 },
+    "startEnter+=0.1",
+  );
+
+  tl.add("pageReady");
   tl.call(resetPage, [next], "pageReady");
+
+  tl.call(() => {
+    flipState = null;
+    flippedThumbnail = null;
+  });
 
   return new Promise((resolve) => {
     tl.call(resolve, null, "pageReady");
@@ -247,6 +263,23 @@ barba.init({
   timeout: 7000,
   preventRunning: true,
   transitions: [
+    {
+      name: "work-to-case",
+      sync: true,
+      from: { namespace: ["work"] },
+      to: { namespace: ["case"] },
+      custom: ({ trigger }) => trigger.hasAttribute("data-case-link"),
+      async leave(data) {
+        return runWorkLeaveAnimation(
+          data.current.container,
+          data.next.container,
+          data.trigger,
+        );
+      },
+      async enter(data) {
+        return runCaseEnterAnimation(data.next.container);
+      },
+    },
     {
       name: "default",
       sync: true,
